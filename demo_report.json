@@ -1,0 +1,86 @@
+{
+  "generated_at": "2026-03-01T15:12:09.862999",
+  "summary": {
+    "report_type": "上海房产市场分析",
+    "data_period": "演示数据集",
+    "analysis_time": "2026-03-01 15:12:09"
+  },
+  "market_insights": [
+    "黄浦、静安等核心区域价格保持高位",
+    "外围区域如闵行性价比较高",
+    "整体市场价格相对稳定",
+    "不同户型价格差异明显"
+  ],
+  "recent_listings": [
+    {
+      "district": "黄浦",
+      "community": "绿城雅居",
+      "price_per_sqm": "142,075元/平",
+      "area": "142平",
+      "date": "2026-03-01"
+    },
+    {
+      "district": "黄浦",
+      "community": "保利国际",
+      "price_per_sqm": "141,216元/平",
+      "area": "134平",
+      "date": "2026-03-01"
+    },
+    {
+      "district": "黄浦",
+      "community": "龙湖天街",
+      "price_per_sqm": "109,674元/平",
+      "area": "138平",
+      "date": "2026-03-01"
+    },
+    {
+      "district": "黄浦",
+      "community": "金地自在城",
+      "price_per_sqm": "102,299元/平",
+      "area": "115平",
+      "date": "2026-03-01"
+    },
+    {
+      "district": "静安",
+      "community": "龙湖天街",
+      "price_per_sqm": "105,454元/平",
+      "area": "59平",
+      "date": "2026-03-01"
+    },
+    {
+      "district": "静安",
+      "community": "金地自在城",
+      "price_per_sqm": "118,329元/平",
+      "area": "86平",
+      "date": "2026-03-01"
+    },
+    {
+      "district": "静安",
+      "community": "金地自在城",
+      "price_per_sqm": "128,439元/平",
+      "area": "62平",
+      "date": "2026-03-01"
+    },
+    {
+      "district": "静安",
+      "community": "金地自在城",
+      "price_per_sqm": "107,506元/平",
+      "area": "127平",
+      "date": "2026-03-01"
+    },
+    {
+      "district": "徐汇",
+      "community": "保利国际",
+      "price_per_sqm": "78,196元/平",
+      "area": "117平",
+      "date": "2026-03-01"
+    },
+    {
+      "district": "徐汇",
+      "community": "绿城雅居",
+      "price_per_sqm": "76,598元/平",
+      "area": "92平",
+      "date": "2026-03-01"
+    }
+  ]
+}
