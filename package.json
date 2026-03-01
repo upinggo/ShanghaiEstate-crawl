@@ -1,0 +1,68 @@
+{
+  "name": "shanghai-real-estate-analyzer",
+  "version": "2.0.0",
+  "description": "Comprehensive Shanghai real estate data crawler and trend analyzer for Lianjia",
+  "main": "src/main.js",
+  "scripts": {
+    "setup": "node setup.js",
+    "start": "node src/main.js --mode auto",
+    "crawl": "node src/main.js --mode advanced",
+    "analyze": "node src/main.js --mode analyze",
+    "crawl:auto": "node src/main.js --mode auto",
+    "crawl:real": "node src/main.js --mode real",
+    "crawl:advanced": "node src/main.js --mode advanced",
+    "crawl:simulation": "node src/main.js --mode simulation",
+    "crawl:xuhui": "node src/main.js --mode advanced --districts xuhui --pages 3",
+    "crawl:pudong": "node src/main.js --mode advanced --districts pudong --pages 5",
+    "crawl:core": "node src/main.js --mode advanced --districts xuhui,huangpu,jingan,changning,putuo,hongkou,yangpu --pages 3",
+    "analyze:trends": "node src/main.js --mode analyze",
+    "export:csv": "node src/main.js --mode analyze --export csv",
+    "export:excel": "node src/main.js --mode analyze --export excel",
+    "schedule:daily": "node src/main.js --mode auto --districts xuhui,huangpu,jingan --pages 2",
+    "example": "node examples/basic-usage.js",
+    "example:antibot": "node examples/anti-bot-bypass-demo.js --demo",
+    "status": "node examples/anti-bot-bypass-demo.js --status",
+    "test:antibot": "node test-antibot.js",
+    "dev": "webpack",
+    "test": "jest"
+  },
+  "keywords": [
+    "real-estate",
+    "crawler",
+    "shanghai",
+    "lianjia",
+    "data-analysis",
+    "trend-analysis",
+    "anti-bot",
+    "web-scraping"
+  ],
+  "author": "Real Estate Analytics Team",
+  "license": "MIT",
+  "dependencies": {
+    "cheerio": "^1.0.0-rc.12",
+    "axios": "^1.6.0",
+    "moment": "^2.29.4",
+    "winston": "^3.11.0",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "webpack": "^5.89.0",
+    "webpack-cli": "^5.1.4",
+    "jest": "^29.7.0",
+    "nodemon": "^3.0.1"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/shanghai-real-estate-analyzer.git"
+  },
+  "bugs": {
+    "url": "https://github.com/yourusername/shanghai-real-estate-analyzer/issues"
+  },
+  "homepage": "https://github.com/yourusername/shanghai-real-estate-analyzer#readme",
+  "bin": {
+    "real-estate-analyzer": "./src/main.js"
+  }
+}

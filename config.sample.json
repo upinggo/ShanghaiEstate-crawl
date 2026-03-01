@@ -1,0 +1,14 @@
+{
+  "crawling": {
+    "districts": [
+      "xuhui",
+      "pudong"
+    ],
+    "maxPages": 3,
+    "requestDelay": 2000
+  },
+  "storage": {
+    "dataDir": "./data",
+    "retentionDays": 90
+  }
+}
