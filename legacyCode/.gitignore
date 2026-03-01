@@ -1,0 +1,20 @@
+# Dependencies
+node_modules/
+
+# Data files
+data/
+logs/
+
+# Configuration
+config.local.json
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
