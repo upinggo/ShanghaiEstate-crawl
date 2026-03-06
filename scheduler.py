@@ -5,6 +5,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from shanghai_spider import ShanghaiHouseSpider
 from analyzer import HouseDataAnalyzer
+from config import CAPTCHA_CONFIG
 import signal
 import sys
 
@@ -22,7 +23,9 @@ logger = logging.getLogger(__name__)
 class HouseCrawlerScheduler:
     def __init__(self):
         self.scheduler = AsyncIOScheduler()
-        self.spider = ShanghaiHouseSpider()
+        # Initialize spider with captcha solver if enabled
+        api_key = CAPTCHA_CONFIG.api_key if CAPTCHA_CONFIG.enabled else None
+        self.spider = ShanghaiHouseSpider(captcha_api_key=api_key)
         self.analyzer = HouseDataAnalyzer()
         self.is_running = False
 

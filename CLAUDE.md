@@ -137,6 +137,14 @@ The spider employs comprehensive stealth measures documented in shanghai_spider.
 - Context rotation to prevent session detection
 - Extra JS script (`_INIT_SCRIPT`) patches navigator.webdriver and other leaks
 
+**2Captcha Integration**: When anti-bot blocks occur, the system can automatically solve CAPTCHAs:
+- Auto-detection of CAPTCHA type (ReCaptcha v2/v3, hCaptcha, image captcha)
+- Integration with 2Captcha API for solving
+- Automatic solution injection and page retry
+- Statistics tracking (captchas_solved, captcha_failures)
+- Enable via `CAPTCHA_ENABLED=true` and `CAPTCHA_API_KEY` in .env
+- See CAPTCHA_GUIDE.md for detailed setup and usage
+
 ### Configuration System
 
 Configuration is hierarchical with environment variable overrides:
@@ -194,10 +202,12 @@ shanghai_spider.py      # Crawler with anti-bot logic (500+ lines)
 analyzer.py            # Analysis and visualization
 scheduler.py           # APScheduler-based automation
 config.py              # Configuration dataclasses
+captcha_solver.py      # 2Captcha integration for CAPTCHA solving
 test_system.py         # Unit and integration tests
 install.sh             # Setup script
 run.sh                 # Interactive launcher
 requirements.txt       # Python dependencies
+CAPTCHA_GUIDE.md       # 2Captcha setup and usage guide
 .env                   # Environment config (gitignored)
 data/                  # SQLite DB and cookies (gitignored)
 logs/                  # Log files (gitignored)
@@ -239,11 +249,30 @@ The `NotificationConfig` dataclass is defined but not yet implemented. To add:
 Run `playwright install chromium` in the activated virtual environment.
 
 ### CAPTCHA/Verification Pages
-If `_is_blocked()` returns True frequently:
+
+The system includes **two modes for handling CAPTCHAs**:
+
+**1. Manual Mode (FREE, No API Key Required)**
+- When no API key configured, system switches to manual mode
+- Browser stays open when CAPTCHA detected
+- Script pauses and waits for user to solve CAPTCHA manually
+- User presses ENTER to continue, or types 'skip'/'quit'
+- Perfect for small scrapes, testing, and learning
+- See MANUAL_CAPTCHA_GUIDE.md for details
+
+**2. Automatic Mode (2Captcha Integration)**
+- Sign up at [2captcha.com](https://2captcha.com/) and get API key
+- Set in `.env`: `CAPTCHA_ENABLED=true` and `CAPTCHA_API_KEY=your_key`
+- System automatically detects and solves CAPTCHAs during crawl
+- Costs ~$2.99 per 1000 CAPTCHAs
+- See CAPTCHA_GUIDE.md for full details
+
+**Manual troubleshooting** if `_is_blocked()` returns True frequently:
 - Increase delays via `CRAWLER_CONFIG.request_delay_min/max`
 - Reduce `max_pages_per_district`
 - Enable proxy rotation when implemented
 - Check if IP is rate-limited
+- Use manual mode (FREE) or enable 2Captcha for automatic solving
 
 ### Database Locked Errors
 SQLite can't handle high concurrency. Ensure only one crawler/analyzer runs at a time, or switch to PostgreSQL.
