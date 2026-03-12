@@ -1,0 +1,28 @@
+{
+  "houses": [],
+  "metadata": {
+    "crawlDate": "2026-02-27T08:42:44.896Z",
+    "districts": [
+      "xuhui",
+      "huangpu"
+    ],
+    "successfulDistricts": [],
+    "failedDistricts": [
+      "xuhui",
+      "huangpu"
+    ],
+    "antiBotStats": {
+      "requestCount": 0,
+      "successfulRequests": 0,
+      "failedRequests": 13,
+      "successRate": 0,
+      "consecutiveFailures": 13,
+      "sessionAge": 0.7186166666666666,
+      "activeSessions": 0,
+      "proxiesAvailable": 0,
+      "userAgentPoolSize": 10,
+      "puppeteerEnabled": false,
+      "strategy": "hybrid"
+    }
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "houses": [],
+  "metadata": {
+    "crawlDate": "2026-02-27T11:18:30.825Z",
+    "districts": [
+      "xuhui",
+      "huangpu"
+    ],
+    "successfulDistricts": [],
+    "failedDistricts": [
+      "xuhui",
+      "huangpu"
+    ],
+    "districtStats": {
+      "xuhui": {
+        "housesCollected": 0,
+        "duration": "11.2",
+        "success": false,
+        "timestamp": "2026-02-27T11:18:15.706Z"
+      },
+      "huangpu": {
+        "housesCollected": 0,
+        "duration": "6.5",
+        "success": false,
+        "timestamp": "2026-02-27T11:18:30.824Z"
+      }
+    },
+    "antiBotStats": {
+      "requestCount": 4,
+      "successfulRequests": 4,
+      "failedRequests": 1,
+      "successRate": 1,
+      "recentSuccessRate": 0.8,
+      "consecutiveFailures": 0,
+      "sessionAge": 0.4394,
+      "activeSessions": 4,
+      "proxiesAvailable": 0,
+      "userAgentPoolSize": 13,
+      "strategy": "adaptive",
+      "domainVisitStats": {
+        "sh.lianjia.com": 4
+      },
+      "failurePatternCount": 0
+    }
+  }
+}
