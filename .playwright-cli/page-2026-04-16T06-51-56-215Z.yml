@@ -1,0 +1,45 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e3]:
+      - img "CAPTCHA" [ref=e4]
+      - generic [ref=e5]: 人机验证
+      - generic [ref=e8]:
+        - img [ref=e9]
+        - generic "Click to verify" [ref=e12] [cursor=pointer]
+        - generic [ref=e18]: Verifying
+    - contentinfo [ref=e19]:
+      - generic [ref=e20]:
+        - img [ref=e21]
+        - generic [ref=e22]: © 贝壳信息安全中心
+      - generic [ref=e23]:
+        - link "津ICP备18000836号-1" [ref=e24] [cursor=pointer]:
+          - /url: https://beian.miit.gov.cn/
+        - img [ref=e25]
+        - link "津公网安备 12010602120282号" [ref=e26] [cursor=pointer]:
+          - /url: http://www.beian.gov.cn/portal/registerSystemInfo?recordcode=12010602120282
+  - img [ref=e27]
+  - generic [ref=e29]:
+    - generic [ref=e31]:
+      - generic [ref=e32]: Select in this order
+      - generic [ref=e33]:
+        - img [ref=e57]
+        - img [ref=e58]
+        - img [ref=e59]
+    - generic [ref=e60]:
+      - generic [ref=e61]:
+        - generic:
+          - generic:
+            - generic: "1"
+          - generic:
+            - generic: "2"
+          - generic:
+            - generic: "3"
+        - generic [ref=e43]: Please try again
+      - generic [ref=e65] [cursor=pointer]: OK
+    - generic [ref=e45]:
+      - button "Close" [ref=e46] [cursor=pointer]:
+        - generic: Close
+      - button "Refresh" [ref=e47] [cursor=pointer]:
+        - generic: Refresh
+  - img [ref=e63]
+  - img [ref=e72]
