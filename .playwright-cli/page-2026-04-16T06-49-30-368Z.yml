@@ -1,0 +1,20 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e3]:
+      - img "CAPTCHA" [ref=e4]
+      - generic [ref=e5]: 人机验证
+      - generic [ref=e8]:
+        - img [ref=e9]
+        - generic "Click to verify" [ref=e12] [cursor=pointer]
+        - generic [ref=e18]: Click to verify
+    - contentinfo [ref=e19]:
+      - generic [ref=e20]:
+        - img [ref=e21]
+        - generic [ref=e22]: © 贝壳信息安全中心
+      - generic [ref=e23]:
+        - link "津ICP备18000836号-1" [ref=e24] [cursor=pointer]:
+          - /url: https://beian.miit.gov.cn/
+        - img [ref=e25]
+        - link "津公网安备 12010602120282号" [ref=e26] [cursor=pointer]:
+          - /url: http://www.beian.gov.cn/portal/registerSystemInfo?recordcode=12010602120282
+  - img [ref=e27]
