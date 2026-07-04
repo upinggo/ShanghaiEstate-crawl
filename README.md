@@ -278,6 +278,34 @@ pytest tests/
 
 本项目采用MIT许可证，详见[LICENSE](LICENSE)文件。
 
+## 🤖 GitHub Actions 定时抓取
+
+仓库包含 `.github/workflows/crawl.yml`，每天 **02:35（上海时间，即 UTC 18:35）** 自动运行爬虫，并将 SQLite 数据库提交回 `db/shanghai_houses.db`。也可在 Actions 页面通过 **workflow_dispatch** 手动触发。
+
+### 一次性配置
+
+1. **添加 Repository secrets**（`Settings → Secrets and variables → Actions → Secrets`）：
+   - `PROXY_SERVER`：住宅代理端点，例如 `http://gate.proxy.com:7777`
+   - `PROXY_USERNAME`：代理账号
+   - `PROXY_PASSWORD`：代理密码
+
+   GitHub Actions 使用 Azure 数据中心 IP，链家会直接拦截。**必须**使用住宅代理。
+
+2. **可选变量**（`Settings → Secrets and variables → Actions → Variables`）：
+   - `MAX_PAGES`：每个区抓取的页数，默认 `2`
+
+3. **允许 workflow 写入仓库**：`Settings → Actions → General → Workflow permissions` → 选择 **Read and write permissions**。
+
+### 手动触发
+
+`Actions → Crawl Shanghai listings → Run workflow`，可选传入 `max_pages` 覆盖当次运行。
+
+### 排查
+
+- 运行日志（`spider.log`）作为 artifact 上传，保留 14 天。
+- 若某次运行未产生新数据（例如被反爬拦截），workflow 不会创建空提交。
+- 修改抓取时间：编辑 `.github/workflows/crawl.yml` 的 `cron` 字段（**UTC 时区**）。
+
 ## 📞 联系方式
 
 如有问题或建议，请通过以下方式联系：

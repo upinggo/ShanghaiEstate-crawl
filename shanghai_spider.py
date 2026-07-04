@@ -20,6 +20,7 @@ Techniques:
 import asyncio
 import json
 import logging
+import os
 import random
 import re
 import sqlite3
@@ -259,6 +260,15 @@ async def _new_context(browser, ua: str, sec_ch_ua: str) -> Tuple[BrowserContext
     # Platform-specific sec-ch-ua-platform
     sec_ch_ua_platform = '"macOS"' if "Macintosh" in ua else '"Windows"'
 
+    proxy = None
+    if os.getenv("PROXY_ENABLED", "").lower() == "true" and os.getenv("PROXY_SERVER"):
+        proxy = {"server": os.getenv("PROXY_SERVER")}
+        if os.getenv("PROXY_USERNAME"):
+            proxy["username"] = os.getenv("PROXY_USERNAME")
+        if os.getenv("PROXY_PASSWORD"):
+            proxy["password"] = os.getenv("PROXY_PASSWORD")
+        logger.info(f"Using proxy: {proxy['server']}")
+
     context = await browser.new_context(
         user_agent=ua,
         viewport=vp,
@@ -266,6 +276,7 @@ async def _new_context(browser, ua: str, sec_ch_ua: str) -> Tuple[BrowserContext
         timezone_id="Asia/Shanghai",
         geolocation={"longitude": 121.4737, "latitude": 31.2304},
         permissions=["geolocation"],
+        proxy=proxy,
         extra_http_headers={
             "Accept-Language":    "zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7",
             "Accept":             "text/html,application/xhtml+xml,application/xml;"
@@ -525,6 +536,14 @@ class ShanghaiHouseSpider:
                             logger.error(f"CAPTCHA solving error: {e}")
                     else:
                         # Manual CAPTCHA solving mode
+                        if os.getenv("CI", "").lower() == "true":
+                            logger.warning(
+                                "CAPTCHA detected in CI/headless mode — manual mode disabled, "
+                                "skipping page and saving cookies."
+                            )
+                            _save_cookies(await page.context.cookies())
+                            break
+
                         logger.warning("=" * 60)
                         logger.warning("🔒 CAPTCHA DETECTED - Manual Intervention Required")
                         logger.warning("=" * 60)
@@ -869,6 +888,12 @@ if __name__ == "__main__":
 
     # Initialize spider with captcha solver if enabled
     api_key = CAPTCHA_CONFIG.api_key if CAPTCHA_CONFIG.enabled else None
-    spider = ShanghaiHouseSpider(captcha_api_key=api_key)
 
-    asyncio.run(spider.run(max_pages_per_district=2, headless=False))
+    db_path = os.getenv("DB_PATH", "shanghai_houses.db")
+    Path(db_path).parent.mkdir(parents=True, exist_ok=True)
+
+    headless = os.getenv("HEADLESS", "true").lower() == "true"
+    max_pages = int(os.getenv("MAX_PAGES_PER_DISTRICT", "2"))
+
+    spider = ShanghaiHouseSpider(db_name=db_path, captcha_api_key=api_key)
+    asyncio.run(spider.run(max_pages_per_district=max_pages, headless=headless))

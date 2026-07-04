@@ -1,0 +1,79 @@
+name: Crawl Shanghai listings
+
+on:
+  schedule:
+    # 18:35 UTC = 02:35 next day Shanghai (UTC+8)
+    - cron: "35 18 * * *"
+  workflow_dispatch:
+    inputs:
+      max_pages:
+        description: "Pages per district (overrides MAX_PAGES var)"
+        required: false
+        default: ""
+
+concurrency:
+  group: crawl
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  crawl:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install Python deps
+        run: pip install -r requirements.txt
+
+      - name: Install Playwright Chromium
+        run: python -m playwright install --with-deps chromium
+
+      - name: Run crawler
+        env:
+          HEADLESS: "true"
+          CI: "true"
+          DB_PATH: db/shanghai_houses.db
+          MAX_PAGES_PER_DISTRICT: ${{ github.event.inputs.max_pages != '' && github.event.inputs.max_pages || vars.MAX_PAGES || '2' }}
+          PROXY_ENABLED: "true"
+          PROXY_SERVER: ${{ secrets.PROXY_SERVER }}
+          PROXY_USERNAME: ${{ secrets.PROXY_USERNAME }}
+          PROXY_PASSWORD: ${{ secrets.PROXY_PASSWORD }}
+        run: python shanghai_spider.py
+
+      - name: Commit DB update
+        if: success()
+        run: |
+          if [ ! -f db/shanghai_houses.db ]; then
+            echo "No DB produced — skipping commit."
+            exit 0
+          fi
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f db/shanghai_houses.db
+          if git diff --cached --quiet; then
+            echo "No DB changes to commit."
+          else
+            git commit -m "chore(data): crawl $(date -u +%Y-%m-%d)"
+            git push
+          fi
+
+      - name: Upload spider log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: spider-log-${{ github.run_id }}
+          path: spider.log
+          if-no-files-found: ignore
+          retention-days: 14
