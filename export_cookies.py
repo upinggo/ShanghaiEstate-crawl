@@ -3,10 +3,17 @@ Lianjia Cookie Exporter
 =======================
 Opens a VISIBLE browser window pointed at the Lianjia login page.
 Log in manually (phone / WeChat / any method, including any CAPTCHA /
-SMS verification the site presents).  Once you are on a normal page
-(not the passport login page), press ENTER in this terminal.
-The session cookies are saved to data/cookies.json and will be loaded
-automatically by shanghai_spider.py on every subsequent run.
+SMS verification the site presents).
+
+The script auto-detects login completion by polling three signals:
+  1. The page URL leaves the clogin / passport domain
+  2. A known session cookie appears (lianjia_token, SECURITYTOKEN, sessionid)
+  3. A logged-in DOM element (user avatar / logout link) is visible
+
+As soon as at least two signals fire the cookies are exported.  If the
+auto-detector hasn't fired within LOGIN_TIMEOUT_SECS (default 300s) the
+script gives up.  Manual overrides remain available: press ENTER in the
+terminal or `touch /tmp/lianjia_login_done` to force an immediate export.
 
 Usage:
     python export_cookies.py
@@ -14,6 +21,7 @@ Usage:
 
 import asyncio
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -35,6 +43,94 @@ LOGIN_URL = (
     "?service=https%3A%2F%2Fwww.lianjia.com%2Fuser%2Fchecklogin"
     "%3Fredirect%3Dhttps%253A%252F%252Fsh.lianjia.com%252Fershoufang%252F"
 )
+
+# Total time we're willing to wait for login before giving up.
+LOGIN_TIMEOUT_SECS = int(os.environ.get("LIANJIA_LOGIN_TIMEOUT", "300"))
+# Poll interval for auto-detection.
+POLL_INTERVAL_SECS = 2
+# How many signals must fire before we consider login complete.
+# Two-of-three keeps us robust to false positives on any single signal.
+REQUIRED_SIGNALS = 2
+
+LOGIN_DOMAIN_HINTS = ("clogin.lianjia.com", "passport.lianjia.com", "/login")
+SESSION_COOKIE_NAMES = {"lianjia_token", "SECURITYTOKEN", "sessionid", "lianjia_ssid"}
+# Selectors that only render for a logged-in user.
+LOGGED_IN_SELECTORS = (
+    ".userInfo",
+    ".user-info",
+    "a[href*='logout']",
+    ".myAgent",
+    ".user_nick",
+)
+
+
+async def _url_signal(page) -> bool:
+    """True when the page URL is no longer on the CAS/login domain."""
+    try:
+        url = page.url or ""
+    except Exception:
+        return False
+    if not url or url == "about:blank":
+        return False
+    return not any(hint in url for hint in LOGIN_DOMAIN_HINTS)
+
+
+async def _cookie_signal(context) -> bool:
+    """True when at least one well-known session cookie is present."""
+    try:
+        cookies = await context.cookies()
+    except Exception:
+        return False
+    names = {c.get("name") for c in cookies}
+    return bool(names & SESSION_COOKIE_NAMES)
+
+
+async def _dom_signal(page) -> bool:
+    """True when a logged-in-only element is visible on the page."""
+    for sel in LOGGED_IN_SELECTORS:
+        try:
+            loc = page.locator(sel).first
+            if await loc.count() and await loc.is_visible():
+                return True
+        except Exception:
+            continue
+    return False
+
+
+async def _wait_for_enter(loop: asyncio.AbstractEventLoop) -> None:
+    """Non-blocking wait on stdin ENTER; silently no-ops if stdin isn't a TTY."""
+    if not sys.stdin or not sys.stdin.isatty():
+        # Block forever — the other waiters will resolve first.
+        await asyncio.Event().wait()
+        return
+    await loop.run_in_executor(None, sys.stdin.readline)
+
+
+async def _wait_for_sentinel(sentinel: Path) -> None:
+    while not sentinel.exists():
+        await asyncio.sleep(POLL_INTERVAL_SECS)
+
+
+async def _wait_for_auto_signals(page, context) -> str:
+    """Return a short description of the signals that fired."""
+    while True:
+        results = await asyncio.gather(
+            _url_signal(page),
+            _cookie_signal(context),
+            _dom_signal(page),
+        )
+        url_ok, cookie_ok, dom_ok = results
+        fired = sum(results)
+        if fired >= REQUIRED_SIGNALS:
+            labels = []
+            if url_ok:
+                labels.append("url-left-login")
+            if cookie_ok:
+                labels.append("session-cookie")
+            if dom_ok:
+                labels.append("logged-in-dom")
+            return ", ".join(labels)
+        await asyncio.sleep(POLL_INTERVAL_SECS)
 
 
 async def export_cookies() -> None:
@@ -82,17 +178,53 @@ async def export_cookies() -> None:
         page = await context.new_page()
         await page.goto(LOGIN_URL, wait_until="domcontentloaded", timeout=30_000)
 
-        # Wait for the user to signal completion by creating a sentinel file.
-        # This works whether the script is run from an interactive TTY or a
-        # non-interactive shell (e.g. background task, CI).
+        # Wait for login completion. Whichever finishes first wins:
+        #   • auto-detector sees 2+ post-login signals
+        #   • user presses ENTER on the controlling TTY
+        #   • user creates the sentinel file (works from any shell / CI)
+        #   • LOGIN_TIMEOUT_SECS elapses (safety net)
         sentinel = Path("/tmp/lianjia_login_done")
         sentinel.unlink(missing_ok=True)
-        print("Browser is open. When you finish logging in, run:")
-        print(f"    touch {sentinel}")
-        print("in another terminal. Waiting …", flush=True)
 
-        while not sentinel.exists():
-            await asyncio.sleep(2)
+        print(
+            f"Browser is open. Log in normally — export will trigger "
+            f"automatically once login is detected."
+        )
+        print(f"Manual overrides: press ENTER here, or run `touch {sentinel}`.")
+        print(f"Timeout: {LOGIN_TIMEOUT_SECS}s. Waiting …", flush=True)
+
+        loop = asyncio.get_running_loop()
+        auto_task = asyncio.create_task(_wait_for_auto_signals(page, context))
+        enter_task = asyncio.create_task(_wait_for_enter(loop))
+        sentinel_task = asyncio.create_task(_wait_for_sentinel(sentinel))
+
+        try:
+            done, pending = await asyncio.wait(
+                {auto_task, enter_task, sentinel_task},
+                timeout=LOGIN_TIMEOUT_SECS,
+                return_when=asyncio.FIRST_COMPLETED,
+            )
+        finally:
+            for t in (auto_task, enter_task, sentinel_task):
+                if not t.done():
+                    t.cancel()
+
+        if not done:
+            print(
+                f"\n⚠  Timed out after {LOGIN_TIMEOUT_SECS}s without a login "
+                f"signal. Exporting whatever cookies exist — you may need to "
+                f"rerun if the result is incomplete."
+            )
+        elif auto_task in done and not auto_task.cancelled():
+            try:
+                signals = auto_task.result()
+                print(f"\n✓  Login auto-detected via: {signals}")
+            except Exception:
+                print("\n✓  Login auto-detected.")
+        elif sentinel_task in done:
+            print("\n✓  Sentinel file detected — proceeding.")
+        else:
+            print("\n✓  ENTER received — proceeding.")
 
         sentinel.unlink(missing_ok=True)
 
