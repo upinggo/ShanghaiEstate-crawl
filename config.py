@@ -80,15 +80,6 @@ class ProxyConfig:
             self.proxy_list = []
 
 @dataclass
-class CaptchaConfig:
-    """验证码解决配置"""
-    enabled: bool = False
-    api_key: str = ""
-    timeout: int = 180  # 等待验证码解决的最长时间（秒）
-    auto_report_bad: bool = True  # 自动报告错误的验证码
-    max_attempts: int = 3  # 每个验证码最大尝试次数
-
-@dataclass
 class NotificationConfig:
     """通知配置"""
     email_enabled: bool = False
@@ -113,7 +104,6 @@ class Config:
         self.analysis = AnalysisConfig()
         self.scheduler = SchedulerConfig()
         self.proxy = ProxyConfig()
-        self.captcha = CaptchaConfig()
         self.notification = NotificationConfig()
 
         # 从环境变量加载配置
@@ -145,15 +135,6 @@ class Config:
         if proxy_enabled:
             self.proxy.enabled = proxy_enabled.lower() == 'true'
 
-        # 验证码配置
-        captcha_enabled = os.getenv('CAPTCHA_ENABLED')
-        if captcha_enabled:
-            self.captcha.enabled = captcha_enabled.lower() == 'true'
-
-        captcha_api_key = os.getenv('CAPTCHA_API_KEY')
-        if captcha_api_key:
-            self.captcha.api_key = captcha_api_key
-
 # 全局配置实例
 config = Config()
 
@@ -163,5 +144,4 @@ CRAWLER_CONFIG = config.crawler
 ANALYSIS_CONFIG = config.analysis
 SCHEDULER_CONFIG = config.scheduler
 PROXY_CONFIG = config.proxy
-CAPTCHA_CONFIG = config.captcha
 NOTIFICATION_CONFIG = config.notification

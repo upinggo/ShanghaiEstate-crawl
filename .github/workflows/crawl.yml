@@ -46,10 +46,6 @@ jobs:
           CI: "true"
           DB_PATH: db/shanghai_houses.db
           MAX_PAGES_PER_DISTRICT: ${{ github.event.inputs.max_pages != '' && github.event.inputs.max_pages || vars.MAX_PAGES || '2' }}
-          PROXY_ENABLED: "true"
-          PROXY_SERVER: ${{ secrets.PROXY_SERVER }}
-          PROXY_USERNAME: ${{ secrets.PROXY_USERNAME }}
-          PROXY_PASSWORD: ${{ secrets.PROXY_PASSWORD }}
         run: python shanghai_spider.py
 
       - name: Commit DB update
