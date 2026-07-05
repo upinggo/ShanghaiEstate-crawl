@@ -7,6 +7,10 @@ data/
 *.db
 *.sqlite
 
+# Tracked crawl output (produced by GitHub Actions cron)
+!db/
+!db/*.db
+
 # 日志文件
 *.log
 logs/

@@ -1,0 +1,27 @@
+{
+  "timestamp": "2026-02-27T08:42:44.901Z",
+  "testResults": {
+    "detectionAccuracy": "To be calculated",
+    "httpStrategy": "Tested",
+    "puppeteerStrategy": "Tested",
+    "hybridStrategy": "Tested",
+    "fullCrawl": {
+      "housesCollected": 0,
+      "districtsProcessed": 2,
+      "successRate": 0
+    }
+  },
+  "systemStats": {
+    "requestCount": 0,
+    "successfulRequests": 0,
+    "failedRequests": 13,
+    "successRate": 0,
+    "consecutiveFailures": 13,
+    "sessionAge": 0.7186833333333333,
+    "activeSessions": 0,
+    "proxiesAvailable": 0,
+    "userAgentPoolSize": 10,
+    "puppeteerEnabled": false,
+    "strategy": "hybrid"
+  }
+}

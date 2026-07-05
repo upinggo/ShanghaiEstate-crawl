@@ -28,9 +28,12 @@ from shanghai_spider import (
 )
 
 COOKIE_FILE = Path("data/cookies.json")
+# The CAS server only accepts whitelisted `service` targets. This matches the
+# URL Lianjia itself redirects to when hitting a listing page unauthenticated.
 LOGIN_URL = (
-    "https://passport.lianjia.com/cas/login"
-    "?service=https%3A%2F%2Fsh.lianjia.com%2Fershoufang%2F"
+    "https://clogin.lianjia.com/login"
+    "?service=https%3A%2F%2Fwww.lianjia.com%2Fuser%2Fchecklogin"
+    "%3Fredirect%3Dhttps%253A%252F%252Fsh.lianjia.com%252Fershoufang%252F"
 )
 
 
@@ -79,11 +82,19 @@ async def export_cookies() -> None:
         page = await context.new_page()
         await page.goto(LOGIN_URL, wait_until="domcontentloaded", timeout=30_000)
 
-        print("Browser is open.  Log in now, then press ENTER here …", end="", flush=True)
+        # Wait for the user to signal completion by creating a sentinel file.
+        # This works whether the script is run from an interactive TTY or a
+        # non-interactive shell (e.g. background task, CI).
+        sentinel = Path("/tmp/lianjia_login_done")
+        sentinel.unlink(missing_ok=True)
+        print("Browser is open. When you finish logging in, run:")
+        print(f"    touch {sentinel}")
+        print("in another terminal. Waiting …", flush=True)
 
-        # Wait for user to press ENTER (non-blocking via asyncio)
-        loop = asyncio.get_event_loop()
-        await loop.run_in_executor(None, input)
+        while not sentinel.exists():
+            await asyncio.sleep(2)
+
+        sentinel.unlink(missing_ok=True)
 
         # Collect and save cookies
         cookies = await context.cookies()

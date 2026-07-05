@@ -20,6 +20,7 @@ Techniques:
 import asyncio
 import json
 import logging
+import os
 import random
 import re
 import sqlite3
@@ -29,7 +30,6 @@ from typing import Dict, List, Optional, Tuple
 
 from playwright.async_api import BrowserContext, Page, async_playwright
 from playwright_stealth import Stealth
-from captcha_solver import CaptchaSolver, detect_captcha_type, solve_and_submit
 
 # ── Logging ──────────────────────────────────────────────────────────────────
 logging.basicConfig(
@@ -58,7 +58,7 @@ TARGET_DISTRICTS = list(DISTRICT_MAP.keys())
 
 BASE_URL  = "https://sh.lianjia.com/ershoufang/"
 HOME_URL  = "https://sh.lianjia.com/"
-LOGIN_URL = "https://passport.lianjia.com/cas/login"
+LOGIN_URL = "https://clogin.lianjia.com/login"
 
 COOKIE_FILE      = Path("data/cookies.json")
 LOGIN_CREDS_FILE = Path("data/login_creds.json")   # optional: {"phone": "...", "password": "..."}
@@ -321,30 +321,47 @@ async def _setup_page(context: BrowserContext) -> Page:
 
 # ── Anti-spam / login-wall detection ─────────────────────────────────────────
 async def _is_blocked(page: Page) -> bool:
-    """Return True if the page shows a CAPTCHA, security check, or login wall."""
-    anti_bot_selectors = [
-        'div[class*="captcha"]', 'div[class*="verify"]',
-        'div[class*="shield"]',  'img[src*="captcha"]',
-        '#baxia-punish',         '.punish-page',
-        '#anti-robot',           'div[class*="robot"]',
-    ]
+    """
+    Return True only when the page is actually a captcha / login wall.
+
+    Rules (any one is sufficient):
+      1. URL is on a known captcha / punish domain
+      2. Title contains a strong block keyword AND is short (real listing titles
+         are long and include the district)
+      3. A high-confidence anti-bot element is visible AND the listing container
+         is missing (i.e. the overlay actually replaced the page)
+    """
     try:
-        for sel in anti_bot_selectors:
-            if await page.query_selector(sel):
-                logger.warning(f"Anti-bot selector matched: {sel}")
-                return True
-
-        title = (await page.title()).strip()
-        block_keywords = ["验证", "安全验证", "captcha", "verify", "blocked", "访问受限"]
-        if any(kw in title for kw in block_keywords):
-            logger.warning(f"Anti-bot title keyword: {title!r}")
-            return True
-
-        # Detect login-wall redirect ("登录" title or login-form URL)
         current_url = page.url
-        if "登录" == title or "passport.lianjia.com" in current_url or "login" in current_url.lower():
-            logger.warning(f"Login wall detected — title={title!r}  url={current_url}")
+
+        # 1. Hard URL signals
+        block_url_markers = (
+            "captcha", "verify.", "verifycode", "punish",
+            "baxia", "clogin.lianjia.com", "passport.lianjia.com",
+        )
+        if any(m in current_url for m in block_url_markers):
+            logger.warning(f"Block URL: {current_url}")
             return True
+
+        # 2. Title-based detection (only trigger on short, dedicated block pages)
+        title = (await page.title()).strip()
+        block_titles = ("验证", "安全验证", "人机验证", "captcha", "访问受限", "系统检测")
+        if any(kw in title for kw in block_titles) and len(title) < 30:
+            logger.warning(f"Block title: {title!r}")
+            return True
+
+        # 3. Anti-bot overlay ONLY when the listing container is also missing
+        listing_container = await page.query_selector(".sellListContent")
+        if listing_container is None:
+            hard_selectors = [
+                "#baxia-punish", ".punish-page", "#anti-robot",
+                'img[src*="captcha"]',
+            ]
+            for sel in hard_selectors:
+                el = await page.query_selector(sel)
+                if el and await el.is_visible():
+                    logger.warning(f"Anti-bot overlay visible: {sel}")
+                    return True
 
     except Exception:
         pass
@@ -373,7 +390,7 @@ async def _try_login(page: Page) -> bool:
 
         logger.info("Attempting login …")
         await page.goto(
-            "https://passport.lianjia.com/cas/login?service=https%3A%2F%2Fwww.lianjia.com%2F",
+            "https://clogin.lianjia.com/login?service=https%3A%2F%2Fwww.lianjia.com%2Fuser%2Fchecklogin%3Fredirect%3Dhttps%253A%252F%252Fwww.lianjia.com%252F",
             wait_until="domcontentloaded",
             timeout=25_000,
         )
@@ -412,7 +429,7 @@ async def _try_login(page: Page) -> bool:
             await _delay(2.0, 3.5)
 
         title = await page.title()
-        if "登录" not in title and "passport" not in page.url:
+        if "登录" not in title and "clogin" not in page.url and "passport" not in page.url:
             logger.info("Login appears successful.")
             _save_cookies(await page.context.cookies())
             return True
@@ -427,21 +444,14 @@ async def _try_login(page: Page) -> bool:
 
 # ── Main spider class ─────────────────────────────────────────────────────────
 class ShanghaiHouseSpider:
-    def __init__(self, db_name: str = "shanghai_houses.db", captcha_api_key: str = None):
+    def __init__(self, db_name: str = "shanghai_houses.db"):
         self.db_name = db_name
         self.stats = {
             "total_crawled":      0,
             "successful_inserts": 0,
             "failed_inserts":     0,
             "duplicate_records":  0,
-            "captchas_solved":    0,
-            "captcha_failures":   0,
-            "manual_interventions": 0,
         }
-        self.captcha_solver = None
-        if captcha_api_key:
-            self.captcha_solver = CaptchaSolver(api_key=captcha_api_key)
-            logger.info("2Captcha solver initialized")
         self._init_db()
         self._login_attempted = False
 
@@ -507,58 +517,6 @@ class ShanghaiHouseSpider:
                     logger.warning(f"Access blocked on {url}")
                     _save_cookies(await page.context.cookies())
 
-                    # Try 2Captcha solver if enabled
-                    if self.captcha_solver:
-                        logger.info("Attempting to solve CAPTCHA with 2Captcha...")
-                        try:
-                            solved = await solve_and_submit(page, self.captcha_solver)
-                            if solved:
-                                self.stats["captchas_solved"] += 1
-                                logger.info("CAPTCHA solved successfully, retrying page...")
-                                await asyncio.sleep(2)
-                                continue
-                            else:
-                                self.stats["captcha_failures"] += 1
-                                logger.warning("Failed to solve CAPTCHA")
-                        except Exception as e:
-                            self.stats["captcha_failures"] += 1
-                            logger.error(f"CAPTCHA solving error: {e}")
-                    else:
-                        # Manual CAPTCHA solving mode
-                        logger.warning("=" * 60)
-                        logger.warning("🔒 CAPTCHA DETECTED - Manual Intervention Required")
-                        logger.warning("=" * 60)
-                        logger.info(f"Page URL: {url}")
-                        logger.info("Browser will stay open for manual solving...")
-                        logger.info("Please solve the CAPTCHA in the browser window.")
-                        logger.warning("")
-                        logger.warning("Options:")
-                        logger.warning("  1. Solve the CAPTCHA manually in the browser")
-                        logger.warning("  2. Press ENTER when done to continue crawling")
-                        logger.warning("  3. Or type 'skip' to skip this page")
-                        logger.warning("  4. Or type 'quit' to stop the crawler")
-                        logger.warning("")
-
-                        try:
-                            user_input = input("Action [press ENTER when solved / skip / quit]: ").strip().lower()
-
-                            if user_input == 'quit':
-                                logger.info("User requested to quit. Stopping crawler...")
-                                return []
-                            elif user_input == 'skip':
-                                logger.info("User chose to skip this page")
-                                break  # Exit retry loop for this page
-                            else:
-                                logger.info("User confirmed CAPTCHA solved, continuing...")
-                                self.stats["manual_interventions"] += 1
-                                await asyncio.sleep(2)
-                                # Save cookies after manual solve
-                                _save_cookies(await page.context.cookies())
-                                continue  # Retry the page
-                        except (EOFError, KeyboardInterrupt):
-                            logger.warning("Input interrupted. Skipping page...")
-                            break
-
                     # First block: try login (only once per run)
                     if not self._login_attempted:
                         self._login_attempted = True
@@ -566,7 +524,7 @@ class ShanghaiHouseSpider:
                         if ok:
                             logger.info("Retrying page after login …")
                             continue
-                        logger.warning("Login unavailable – check data/login_creds.json")
+                        logger.warning("Login unavailable – check data/cookies.json (run export_cookies.py)")
 
                     if attempt < retries - 1:
                         backoff = (2 ** attempt) * random.uniform(8, 15)
@@ -613,8 +571,8 @@ class ShanghaiHouseSpider:
             if href.startswith("/"):
                 href = "https://sh.lianjia.com" + href
 
-            total_price = await self._get_price(item, [".totalPrice .price", "[class*='totalPrice'] b"])
-            unit_price  = await self._get_price(item, [".unitPrice span",    "[class*='unitPrice'] span"])
+            total_price = await self._get_price(item, [".totalPrice span", ".totalPrice", "[class*='totalPrice'] span"])
+            unit_price  = await self._get_price(item, [".unitPrice span", "[class*='unitPrice'] span"])
             area, house_type, floor_info = await self._get_basic(item)
             orientation, decoration, elevator = await self._get_details(item)
             community = self._community_name(title)
@@ -658,7 +616,7 @@ class ShanghaiHouseSpider:
                 return 0.0, "", ""
             text  = await el.inner_text()
             area  = float(m.group(1)) if (m := re.search(r"(\d+(?:\.\d+)?)\s*平", text)) else 0.0
-            htype = m.group(1) if (m := re.search(r"\d室\d厅", text)) else ""
+            htype = m.group(0) if (m := re.search(r"\d室\d厅", text)) else ""
             floor = m.group(0) if (m := re.search(r"(?:低|中|高)楼层", text)) else ""
             return area, htype, floor
         except Exception:
@@ -751,11 +709,6 @@ class ShanghaiHouseSpider:
         logger.info(f"Inserted      : {self.stats['successful_inserts']}")
         logger.info(f"Duplicates    : {self.stats['duplicate_records']}")
         logger.info(f"Failed        : {self.stats['failed_inserts']}")
-        if self.captcha_solver:
-            logger.info(f"Captchas solved : {self.stats['captchas_solved']}")
-            logger.info(f"Captcha failures: {self.stats['captcha_failures']}")
-        if self.stats['manual_interventions'] > 0:
-            logger.info(f"Manual interventions: {self.stats['manual_interventions']}")
         logger.info("=" * 50)
 
     # ── Main entry point ──────────────────────────────────────────────────────
@@ -865,10 +818,11 @@ class ShanghaiHouseSpider:
 
 # ── CLI entry ─────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
-    from config import CAPTCHA_CONFIG
+    db_path = os.getenv("DB_PATH", "shanghai_houses.db")
+    Path(db_path).parent.mkdir(parents=True, exist_ok=True)
 
-    # Initialize spider with captcha solver if enabled
-    api_key = CAPTCHA_CONFIG.api_key if CAPTCHA_CONFIG.enabled else None
-    spider = ShanghaiHouseSpider(captcha_api_key=api_key)
+    headless = os.getenv("HEADLESS", "true").lower() == "true"
+    max_pages = int(os.getenv("MAX_PAGES_PER_DISTRICT", "2"))
 
-    asyncio.run(spider.run(max_pages_per_district=2, headless=False))
+    spider = ShanghaiHouseSpider(db_name=db_path)
+    asyncio.run(spider.run(max_pages_per_district=max_pages, headless=headless))

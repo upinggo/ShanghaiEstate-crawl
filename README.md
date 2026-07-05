@@ -1,27 +1,30 @@
 # 上海市中心房产价格监测系统 🏠
 
-一套高可用、抗反爬、数据清洗能力强的分布式房产数据爬虫系统，专门用于捕捉上海市中心房产价格及趋势分析。
+抗反爬的上海房产数据爬虫，抓取链家二手房挂牌信息，落 SQLite，配套分析与可视化。
 
 ## 🎯 项目特色
 
-- **智能反爬**: 采用 Playwright + stealth 模式，有效规避反爬虫检测
-- **数据清洗**: 自动处理字体加密、异常数据过滤
-- **趋势分析**: 支持价格趋势、区域对比、异常检测等多种分析维度
-- **定时调度**: 支持自动化定时抓取和分析
-- **可视化展示**: 丰富的图表展示房价走势和分布
+- **反爬对抗**：Playwright + playwright-stealth + 人类化行为（鼠标 / 滚动 / 抖动延迟）
+- **手动登录 + Cookie 复用**：一次登录导出 Cookie，后续无人值守
+- **数据清洗**：字段标准化、异常值过滤
+- **趋势分析**：价格走势、区域对比、异常检测
+- **定时抓取**：GitHub Actions cron 每日自动运行并回提 DB
+- **可视化**：matplotlib 图表输出
 
 ## 🏗️ 系统架构
 
 ```
 ShanghaiEstate-crawl/
-├── shanghai_spider.py     # 核心爬虫模块
-├── analyzer.py           # 数据分析模块
-├── scheduler.py          # 任务调度模块
-├── config.py            # 配置管理
-├── requirements.txt     # 依赖列表
-├── install.sh          # 安装脚本
-├── run.sh             # 运行脚本
-└── data/              # 数据存储目录
+├── shanghai_spider.py       # 核心爬虫（含 stealth / cookie 加载 / 阻断检测）
+├── export_cookies.py        # 手动登录 & 导出 Cookie
+├── analyzer.py              # 数据分析
+├── scheduler.py             # 本地 APScheduler 调度（可选）
+├── config.py                # 配置
+├── requirements.txt         # 依赖
+├── install.sh / run.sh      # 安装 / 交互式启动
+├── data/                    # cookies.json、本地日志（.gitignore）
+├── db/                      # 生产 SQLite（被 CI 提交回仓库）
+└── .github/workflows/       # 每日 cron 抓取
 ```
 
 ## 🚀 快速开始
@@ -44,13 +47,74 @@ chmod +x install.sh
 ./install.sh
 ```
 
-### 3. 快速使用
+### 3. 本地运行（Step by Step）
+
+链家部分页面需要登录，本项目采用 **手动登录一次导出 Cookie**、后续爬虫自动加载的模式。不再需要代理或验证码 API。
+
+#### Step 1 — 激活环境并确认浏览器已安装
 
 ```bash
-# 激活虚拟环境
 source venv/bin/activate
+playwright install chromium   # 首次运行需要
+```
 
-# 运行交互式界面
+#### Step 2 — 导出登录 Cookie（首次或过期时执行）
+
+```bash
+python export_cookies.py
+```
+
+- 弹出的浏览器中登录链家（手机号 / 微信 / 密码均可）
+- 完成任何 CAPTCHA / 短信验证
+- 停在正常的链家页面（例如 `sh.lianjia.com/ershoufang/`）
+- 在**另一个终端**执行：
+
+```bash
+touch /tmp/lianjia_login_done
+```
+
+Cookie 保存在 `data/cookies.json`。
+
+#### Step 3 — 运行爬虫
+
+```bash
+# 小规模测试（每个区抓 1 页，显示浏览器窗口）
+HEADLESS=false MAX_PAGES_PER_DISTRICT=1 DB_PATH=db/shanghai_houses.db python shanghai_spider.py
+
+# 正式运行（后台无界面）
+HEADLESS=true MAX_PAGES_PER_DISTRICT=3 DB_PATH=db/shanghai_houses.db python shanghai_spider.py
+```
+
+环境变量：
+
+| 变量 | 默认值 | 说明 |
+|------|--------|------|
+| `HEADLESS` | `true` | 是否无头浏览 |
+| `MAX_PAGES_PER_DISTRICT` | `2` | 每个区抓取页数 |
+| `DB_PATH` | `shanghai_houses.db` | SQLite 数据库路径 |
+
+#### Step 4 — 查看数据
+
+```bash
+# 各区抓取数量
+sqlite3 db/shanghai_houses.db 'SELECT district, COUNT(*) FROM house_listings GROUP BY district'
+
+# 前 10 条样例
+sqlite3 db/shanghai_houses.db 'SELECT district, title, total_price, unit_price FROM house_listings LIMIT 10'
+
+# 若结果异常，查看日志
+tail -50 spider.log
+```
+
+#### Step 5 —（可选）生成分析报告
+
+```bash
+python analyzer.py
+```
+
+### 4. 交互式菜单（可选）
+
+```bash
 chmod +x run.sh
 ./run.sh
 ```
@@ -134,12 +198,6 @@ MAX_PAGES_PER_DISTRICT=3         # 每个区域抓取页数
 # 调度器配置
 CRAWL_HOUR=2                     # 抓取时间（小时）
 CRAWL_MINUTE=0                   # 抓取时间（分钟）
-
-# 代理配置（可选）
-PROXY_ENABLED=false
-PROXY_API_ENDPOINT=              # 代理API地址
-PROXY_USERNAME=                  # 代理用户名
-PROXY_PASSWORD=                  # 代理密码
 ```
 
 ### 高级配置 (`config.py`)
@@ -207,10 +265,12 @@ class CustomAnalyzer(HouseDataAnalyzer):
 
 ### 反爬虫对策
 
-1. **频率控制**: 随机延时3-8秒，避免高频访问
-2. **身份伪装**: 轮换User-Agent，模拟真实用户行为
-3. **代理池**: 支持代理IP轮换（需配置）
-4. **异常处理**: 完善的错误重试机制
+1. **频率控制**：随机延时 3-8 秒，Gaussian 抖动
+2. **身份伪装**：UA + sec-ch-ua 轮换，playwright-stealth 隐藏 webdriver 指纹
+3. **人类化行为**：鼠标移动、滚动、页面停留
+4. **登录 Cookie 复用**：`export_cookies.py` 一次登录，长期使用
+5. **上下文轮换**：每 N 页重建 BrowserContext，避免会话过长被识别
+6. **异常处理**：指数退避重试
 
 ### 法律合规
 
@@ -239,10 +299,10 @@ class CustomAnalyzer(HouseDataAnalyzer):
 ## 🆘 常见问题
 
 ### Q: 抓取速度很慢怎么办？
-A: 可以适当增加并发数，但要注意遵守网站访问频率限制。
+A: 反爬对策要求较长延时，属正常现象。可减少 `MAX_PAGES_PER_DISTRICT` 或减少 `TARGET_DISTRICTS`。
 
-### Q: 遇到验证码如何处理？
-A: 系统会自动检测验证码页面，建议配置代理IP轮换。
+### Q: 遇到验证码 / 登录墙怎么办？
+A: 重新运行 `python export_cookies.py` 手动登录，覆盖 `data/cookies.json`。若频繁触发，降低抓取页数、增加延时。
 
 ### Q: 数据存储占用过大怎么办？
 A: 可以定期清理历史数据，或调整抓取频率。
@@ -277,6 +337,36 @@ pytest tests/
 ## 📄 许可证
 
 本项目采用MIT许可证，详见[LICENSE](LICENSE)文件。
+
+## 🤖 GitHub Actions 定时抓取
+
+仓库包含 `.github/workflows/crawl.yml`，每天 **02:35（上海时间，即 UTC 18:35）** 自动运行爬虫，并将 SQLite 数据库提交回 `db/shanghai_houses.db`。也可在 Actions 页面通过 **workflow_dispatch** 手动触发。
+
+### 登录 Cookie（必需）
+
+链家部分页面需要登录。登录采用手动方式，执行一次即可：
+
+```bash
+python export_cookies.py
+```
+
+浏览器会弹出登录页，登录成功后在另一个终端执行 `touch /tmp/lianjia_login_done`，Cookie 将保存到 `data/cookies.json`。爬虫会自动加载该文件。
+
+### 一次性配置
+
+- **可选变量**（`Settings → Secrets and variables → Actions → Variables`）：
+  - `MAX_PAGES`：每个区抓取的页数，默认 `2`
+- **允许 workflow 写入仓库**：`Settings → Actions → General → Workflow permissions` → 选择 **Read and write permissions**。
+
+### 手动触发
+
+`Actions → Crawl Shanghai listings → Run workflow`，可选传入 `max_pages` 覆盖当次运行。
+
+### 排查
+
+- 运行日志（`spider.log`）作为 artifact 上传，保留 14 天。
+- 若某次运行未产生新数据（例如被反爬拦截），workflow 不会创建空提交。
+- 修改抓取时间：编辑 `.github/workflows/crawl.yml` 的 `cron` 字段（**UTC 时区**）。
 
 ## 📞 联系方式
 
